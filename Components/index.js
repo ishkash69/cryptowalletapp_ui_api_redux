@@ -1,5 +1,10 @@
 import Tabicon from "./TabIcon";
 import IconTextButton from "./iconTextButton";
-export {Tabicon,
-IconTextButton
+import BalanceInfo from "./BalanceInfo";
+import HeaderBar from "./HeaderBar";
+export {
+    Tabicon,
+    IconTextButton,
+    BalanceInfo,
+    HeaderBar
 }

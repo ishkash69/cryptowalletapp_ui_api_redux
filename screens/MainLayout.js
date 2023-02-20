@@ -24,7 +24,7 @@ const MainLayout = ({children}) => {
         }else{
             Animated.timing(modalAnimatedVal,{
                 toValue: 0,
-                duration: 500,
+                duration: 1000,
                 useNativeDriver: false,
             }).start();
         }
