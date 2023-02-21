@@ -19,7 +19,7 @@ const Home = () => {
     const [filteredData, setFilteredData] = useState([])
     const [state, setState] = useState({
         currency: 'usd',
-        orderBy: 'market_cap_rank',
+        orderBy: 'market_cap_desc',
         perPage: 10,
         page: 1,
         sparkline: true,

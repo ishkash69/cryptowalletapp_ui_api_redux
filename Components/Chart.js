@@ -77,10 +77,8 @@ const ChartComp = ({
                 data={data}
                 viewport={{ size: { width: SIZES.width * 300 } }}
                 // padding={{ left: 50, bottom: 0, right: 50, top: 40 }}
-                yDomain={{ min: Math.min(...chartPrices), max: Math.max(...chartPrices) }}
+                // yDomain={{ min: Math.min(...chartPrices), max: Math.max(...chartPrices) }}
             >
-
-
                 <Line
                     smoothing="bezier"
                     theme={{ stroke: { color: COLORS.lightGreen, width: 2 } }}
@@ -91,8 +89,6 @@ const ChartComp = ({
                                 shape: { opacity: 0, },
                                 formatter: ({ y }) => `$${y.toFixed(2)}`
                             }} />
-
-
                     } />
             </Chart>
             }

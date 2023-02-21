@@ -13,7 +13,11 @@ import { SIZES, icons, FONTS, COLORS, constants } from '../constants'
 import actions from '../redux/actions';
 import { HeaderBar } from '../Components';
 import { LineChart } from 'react-native-chart-kit';
-import { compose } from 'redux';
+import { transform } from '@babel/core';
+import { Chart, Line } from 'react-native-responsive-linechart';
+import { makeMutable } from 'react-native-reanimated';
+import { height } from '../src/styles/responsiveSize';
+
 
 
 const marketTabs = constants.marketTabs.map((marketTabs) => ({
@@ -27,8 +31,8 @@ const Market = () => {
     const [filteredData, setFilteredData] = useState([])
     const [state, setState] = useState({
         currency: 'usd',
-        orderBy: 'market_cap_rank',
-        perPage: 10,
+        orderBy: 'market_cap_desc',
+        perPage: 30,
         page: 1,
         sparkline: true,
         priceChangePerc: '7d',
@@ -56,7 +60,7 @@ const Market = () => {
     }, [])
 
     const getCoinMaket = useCallback(async () => {
-        let query = `vs_currency=${currency}&order=${orderBy}&per_page=${10}&page=${coinsPage}&sparkline=${sparkline}&price_change_percentage=${priceChangePerc}`
+        let query = `vs_currency=${currency}&order=${orderBy}&per_page=${perPage}&page=${coinsPage}&sparkline=${sparkline}&price_change_percentage=${priceChangePerc}`
 
         actions.getHoldings(query).then(res => {
             // console.log(res, 'res>>>>')
@@ -66,16 +70,73 @@ const Market = () => {
             console.log(coinsPage, "page<<>>")
         })
     }, [coinsPage])
-
-    const Tabs = useCallback(() => {
+    const scrollX = useRef(new Animated.Value(0)).current;
+    const marketTabScrollViewRef = useRef()
+    const onMarketTabPress = useCallback(marketTabIndex=>{
+        marketTabScrollViewRef?.current?.scrollToOffset({
+            offset: marketTabIndex* SIZES.width
+        })
+    },[])
+    const TabIndicator = ({ scrollX, measureLayout }) => {
+        const inputRange = marketTabs.map((_, i) => i * SIZES.width)
+        const translateX = scrollX.interpolate({
+            inputRange,
+            outputRange: measureLayout.map(measure => measure.x)
+        })
         return (
-            <View style={{ flexDirection: 'row' }}>
-                {/* Tabs */}
+            <Animated.View
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    height: "100%",
+                    width: (SIZES.width - (SIZES.radius * 2)) / 2,
+                    borderRadius: SIZES.padding,
+                    backgroundColor: COLORS.lightGray,
+                    transform: [{
+                        translateX
+                    }]
+                }}
+            />
+        )
+    }
 
+    const Tabs = ({ scrollX , onMarketTabPress}) => {
+        const [measureLayout, setMeasureLyout] = useState([])
+        const containerRef = useRef()
+
+        useEffect(() => {
+            let ml = []
+            marketTabs.forEach(marketTab => {
+                marketTab?.ref?.current?.measureLayout(
+                    containerRef.current,
+                    (x, y, width, height) => {
+                        ml.push({
+                            x, y, width, height
+                        })
+                        if (ml.length === marketTabs.length) {
+                            setMeasureLyout(ml)
+                        }
+                    }
+                )
+            })
+        }, [containerRef.current])
+        return (
+            <View
+                ref={containerRef}
+                style={{ flexDirection: 'row' }}>
+                {/* Tab Indicator */}
+                {measureLayout.length > 0 &&
+                    <TabIndicator
+                        measureLayout={measureLayout}
+                        scrollX={scrollX}
+                    />
+                }
+                {/* Tabs */}
                 {marketTabs.map((item, index) => {
                     return (
                         <TouchableOpacity
-                            key={`marketTab-${index}`}
+                        onPress={()=>onMarketTabPress(index)}
+                            key={`MarketTab-${index}`}
                             style={{ flex: 1 }}
                         >
                             <View
@@ -84,19 +145,21 @@ const Market = () => {
                             >
                                 <Text style={styles.tabLable}>{item?.title}</Text>
                             </View>
-
                         </TouchableOpacity>
                     )
                 })}
             </View>
         )
-    }, [])
+    }
 
 
     const renderTabBar = useCallback(() => {
         return (
             <View style={styles.renderTabBar}>
-                <Tabs />
+                <Tabs
+                    scrollX={scrollX}
+                    onMarketTabPress={onMarketTabPress}
+                    />
             </View>
         )
     }, [])
@@ -117,10 +180,9 @@ const Market = () => {
         )
     }, [])
 
-    const scrollX = useRef(new Animated.Value(0)).current;
+   
 
     const renderItem = useCallback(({ item, index }) => {
-        console.log(item,"items<<?????")
         return (
             <View style={{
                 flex: 1,
@@ -129,33 +191,77 @@ const Market = () => {
                 <FlatList
                     data={coins}
                     keyExtractor={item => item.id}
+                    onEndReached={getCoinMaket}
+                    onEndReachedThreshold={5}
                     renderItem={({ item, index }) => {
-                        console.log(item,"item>>>")
+                        console.log(item.sparkline_in_7d.price, "item<><><><>?")
                         let priceColor = (item?.price_change_percentage_7d_in_currency == 0) ? COLORS.lightGray3
                             : (item?.price_change_percentage_7d_in_currency > 0) ? COLORS.lightGreen : COLORS.red
                         return (
-                            <View style={{
-                                flexDirection: 'row',
-                                paddingHorizontal: SIZES.padding,
-                                marginBottom: SIZES.radius
-                            }}>
+                            <View style={styles.flatListMain}>
                                 {/* Coins  */}
                                 <View
-                                style={{flex: 1.5,
-                                    flexDirection: 'row',
-                                    alignItems: 'center'
-                                }}
+                                    style={styles.flatListCoinsMain}
                                 >
                                     <Image
-                                    style={{
-                                        height: 20,
-                                        width: 20
-                                    }}
-                                    source={{uri: item?.image}}/>
+                                        style={styles.coinsIcon}
+                                        source={{ uri: item?.image }} />
+                                    <Text style={styles.coinsName}>{item?.name}</Text>
                                 </View>
                                 {/* LineChart */}
+                                <View
+                                    style={{
+                                        flex: 1,
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <LineChart
+                                        withVerticalLabels={false}
+                                        withHorizontalLabels={false}
+                                        withDots={false}
+                                        withInnerLines={false}
+                                        withVerticalLines={false}
+                                        data={{
+                                            datasets: [
+                                                {
+                                                    data: item?.sparkline_in_7d?.price
+                                                }
+                                            ]
+                                        }}
+                                        width={100}
+                                        height={60}
+                                        chartConfig={{
+                                            color: () => priceColor,
+                                            strokeWidth: 1,
+                                        }}
+                                        bezier
+                                        style={{
+                                            paddingRight: 0,
+                                        }}
 
+
+                                    />
+                                </View>
                                 {/* Figures */}
+
+                                <View style={styles.figuresMain}>
+                                    <Text style={styles.currentPrice}>$ {item?.current_price}</Text>
+                                    <View style={styles.percentageView}>
+                                        <Image
+                                            source={icons.upArrow}
+                                            style={{
+                                                height: 10,
+                                                width: 10,
+                                                tintColor: priceColor,
+                                                transform: (item?.price_change_percentage_7d_in_currency > 0 ?
+                                                    [{ rotate: '45deg' }] : [{ rotate: '125deg' }])
+                                            }}
+                                        />
+                                        <Text
+                                            style={[styles.percentageText, { color: priceColor }]}
+                                        >{item?.price_change_percentage_7d_in_currency.toFixed(2)}%</Text>
+                                    </View>
+                                </View>
                             </View>
                         )
                     }}
@@ -166,42 +272,39 @@ const Market = () => {
     }, [])
 
     const renderList = useCallback(() => {
-        <Animated.FlatList
-            data={marketTabs}
-            contentContainerStyle={{
-                marginTop: SIZES.padding,
-            }}
-            horizontal
-            pagingEnabled
-            scrollEventThrottle={16}
-            snapToAlignment='center'
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={item => item.id}
-            onScroll={
-                Animated.event([
-                    { nativeEvent: { contentOffset: { x: scrollX } } }
-                ], {
-                    useNativeDriver: false
-                })
-            }
-            renderItem={renderItem}
-
-
-        />
+        return (
+            <Animated.FlatList
+                ref={marketTabScrollViewRef}
+                data={marketTabs}
+                contentContainerStyle={{
+                    marginTop: SIZES.padding,
+                }}
+                horizontal
+                pagingEnabled
+                scrollEventThrottle={16}
+                snapToAlignment='center'
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={item => item.id}
+                onScroll={
+                    Animated.event([
+                        { nativeEvent: { contentOffset: { x: scrollX } } }
+                    ], {
+                        useNativeDriver: false
+                    })
+                }
+                renderItem={renderItem}
+            />
+        )
     }, [])
     return (
         <MainLayout>
             <View style={styles.container}>
-
                 {/* Header Bar */}
                 <HeaderBar
                     title={"Market"}
                 />
-
                 {/* Tabbar  */}
-
                 {renderTabBar()}
-
                 {/* Buttons */}
                 <View style={{ flexDirection: 'row' }}>
                     {renderButton("USD")}
@@ -245,6 +348,43 @@ const styles = StyleSheet.create({
     },
     renderButtonContainer: {
         marginTop: SIZES.radius,
+    },
+    flatListMain: {
+        flexDirection: 'row',
+        paddingHorizontal: SIZES.padding,
+        marginBottom: SIZES.radius,
+    },
+    flatListCoinsMain: {
+        flex: 1.5,
+        flexDirection: 'row',
+        alignItems: 'center'
+    },
+    coinsIcon: {
+        height: 20,
+        width: 20
+    },
+    coinsName: {
+        color: COLORS.white,
+        ...FONTS.h4,
+        marginLeft: SIZES.padding
+    },
+    figuresMain: {
+        flex: 1,
+        alignItems: "flex-end",
+        justifyContent: 'center'
+    },
+    currentPrice: {
+        color: COLORS.white,
+        ...FONTS.h4
+    },
+    percentageView: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center'
+    },
+    percentageText: {
+        marginLeft: 5,
+        ...FONTS.body5
     }
 })
 
